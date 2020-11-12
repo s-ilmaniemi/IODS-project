@@ -1,0 +1,21 @@
+# Exercise 3: Logistic regression
+```{r}
+date()
+```
+
+### Data description 
+
+```{r}
+setwd("~/R/IODS-project")
+pormat<-read.csv("data/pormat.csv", header=T)
+
+str(pormat)
+
+```
+
+The dataset __pormat__ includes 35 different variables and 370 observations. The dataset has been constructed by joining two datasets that include information on students from two Portuguese schools. The two original datasets included information on students performance in mathematics and Portuguese language. Variables _G1-G3_ are the grades and when datasets were joined the average of grades of these two subjects were calculated to create grades variables in the joined dataset. Also averages of the numbers absences and failures from these two subject were calculated when forming the joined dataset. _paid_ variable contains information if the student got paid classes in the subject, in the joined dataset _paid_ variable represent the answer to the question if the student got paid classes in Portuguese language. Other variables are background variables such as age, sex, parents' level of education etc. 
+
+When the joinded dataset was constructed, two new variables were created _alc_use_ which is the average of workday (_Dalc_) and weekend (_Walc_) alcohol consumption and _high_use_ which is binary variable describing if the average alcohol consumption was higher than 2. 
+
+The two original datasets and the detail description of all variables in the original datasets are available [here](https://archive.ics.uci.edu/ml/datasets/Student+Performance).
+ 
