@@ -6,6 +6,7 @@ date()
 ### Data description 
 
 ```{r}
+library(dplyr); library(ggplot2)
 setwd("~/R/IODS-project")
 pormat<-read.csv("data/pormat.csv", header=T)
 
@@ -13,9 +14,127 @@ str(pormat)
 
 ```
 
-The dataset __pormat__ includes 35 different variables and 370 observations. The dataset has been constructed by joining two datasets that include information on students from two Portuguese schools. The two original datasets included information on students performance in mathematics and Portuguese language. Variables _G1-G3_ are the grades and when datasets were joined the average of grades of these two subjects were calculated to create grades variables in the joined dataset. Also averages of the numbers absences and failures from these two subject were calculated when forming the joined dataset. _paid_ variable contains information if the student got paid classes in the subject, in the joined dataset _paid_ variable represent the answer to the question if the student got paid classes in Portuguese language. Other variables are background variables such as age, sex, parents' level of education etc. 
+The data set __pormat__ includes 35 different variables and 370 observations. The data set has been constructed by joining two data sets that include information on students from two Portuguese schools. The two original data sets included information on students performance in mathematics and Portuguese language. Variables _G1-G3_ are the grades and when data sets were joined the averages of grades of these two subjects were calculated to create grades variables in the joined data set. Also averages of the numbers absences and failures from these two subject were calculated when forming the joined data set. _paid_ variable contains information if the student got paid extra classes in the subject, in the joined data set _paid_ variable represent the answer to the question if the student got paid classes in Portuguese language. Other variables are background variables such as age, sex, parents' level of education etc. 
 
-When the joinded dataset was constructed, two new variables were created _alc_use_ which is the average of workday (_Dalc_) and weekend (_Walc_) alcohol consumption and _high_use_ which is binary variable describing if the average alcohol consumption was higher than 2. 
+When the joined data set was constructed, two new variables were created _alc_use_ which is the average of workday (_Dalc_) and weekend (_Walc_) alcohol consumption and _high_use_ which is binary variable describing if the average alcohol consumption was higher than 2. 
 
-The two original datasets and the detail description of all variables in the original datasets are available [here](https://archive.ics.uci.edu/ml/datasets/Student+Performance).
+The two original datasets and the detail description of all variables in the original data sets are available [here](https://archive.ics.uci.edu/ml/datasets/Student+Performance).
  
+### Variables that may be associated with alcohol consumption
+
+_Absences_: Students who have a lot of absences from class may also have a high alcohol consumption as absences may reflect the fact that student skip school because they feel too hangover.
+
+_Failures_: A high alcohol consumption may harm school performance and student who consume high amount alcohol may not pass exams as often as other students.
+
+_Sex_: It is a quite common known fact that men consume more alcohol than women.
+
+_PStatus_ (parent's cohabitation status): Students whose parents live apart may consume more alcohol because their single parents possibly have to work a lot to provide for the family and can't spent time to supervise what children are doing or a high alcohol consumption may also be a child's reaction to parents' separation. 
+
+### The distributions of the variables and their relationships with alcohol consumption
+
+```{r}
+
+library(tidyr); library(dplyr); library(ggplot2); library(gmodels)
+
+vars<-subset(pormat, select= c("failures","sex","absences", "Pstatus", "alc_use", "high_use"))
+
+# draw a bar plot of each variable
+gather(vars) %>% ggplot(aes(value)) + facet_wrap("key", scales = "free")+geom_bar()
+
+g1<- ggplot(pormat, aes(x=high_use, y=absences,))
+g1 + geom_boxplot() + ylab("absences")+ggtitle("Student absences by alcohol consumption and sex")
+
+table(high_use = pormat$high_use, failures = pormat$failures)
+
+CrossTable(pormat$high_use, pormat$sex, prop.c=TRUE, prop.r=F, prop.chisq=F, prop.t=F)
+
+
+CrossTable(pormat$high_use, pormat$Pstatus, prop.c=TRUE, prop.r=F, prop.chisq=F, prop.t=F)
+
+
+
+```
+From the first plot we can see the distributions of our chosen variables. For example, most students' parents live together and there are more women in our sample than men.
+
+From the second graph we see that the median number of absences is higher among those who consume high amounts of alcohol and also limits for IQR are higher.
+
+From the first table we see that there are more high consumers among those who have several failures in exams.
+
+From the second table we see that 40% of men and 21% of women are have high alcohol consumption.
+
+From the third table we see that 31% of students who parents live apart and 30% of students who parents live together are high consumers.
+
+
+### A logistic regression model
+
+```{r}
+
+m1 <- glm(high_use ~ failures + absences + sex + Pstatus, data = pormat, family = "binomial")
+
+# print out a summary of the model
+summary(m1)
+
+# print out the coefficients of the model
+coef(m1)
+
+# compute odds ratios (OR)
+OR <- coef(m1) %>% exp
+
+# compute confidence intervals (CI)
+CI<-confint(m1)%>%exp
+
+# print out the odds ratios with their confidence intervals
+cbind(OR, CI)
+
+```
+
+From the summary of our model we can see that _failures_, _absences_, and _sex_ variables have a statistically significant coefficients (p<0.001) but _Psatus_ variable do not have a significant coefficient. From odds ratios we can see that men have 2.71 or according to confidence intervals from 1.68 to 4.43 times higher odds of high alcohol consumption than women. Number of failures and absences increase the odds of high alcohol consumption by 81.6% and 9.7% respectively for every one unit increase in the value of the variable. From the confidence interval of _Pstatus_ we can make the same conclusion as from the p-value. The CI includes the value one which indicates that the OR is not statistically significant. To conclude _failures_, _absences_ and _sex_ seem to be associated with a high alcohol consumption as hypothezized previously but parent's cohabitation status is not associated with a high alcohol consumption.
+
+### The predictive power of the model
+
+```{r}
+m2 <- glm(high_use ~ failures + absences + sex , data = pormat, family = "binomial")
+
+# predict() the probability of high_use
+probabilities <- predict(m2, type = "response")
+
+# add the predicted probabilities to data
+pormat <- mutate(pormat, probability = probabilities)
+
+# use the probabilities to make a prediction of high_use
+pormat <- mutate(pormat, prediction = probability>0.5)
+
+# tabulate the target variable versus the predictions
+table(high_use = pormat$high_use, prediction = pormat$prediction)
+
+table(high_use = pormat$high_use, prediction = pormat$prediction)%>%prop.table()%>%addmargins
+
+# plot the target variable versus the predictions
+g <- ggplot(pormat, aes(x = high_use, y = probability))
+g+geom_point()
+
+loss_func <- function(class, prob) {
+  n_wrong <- abs(class - prob) > 0.5
+  mean(n_wrong)
+}
+
+# call loss_func to compute the average number of wrong predictions in the (training) data
+loss_func(class = pormat$high_use, prob = pormat$probability)
+
+```
+
+As _Pstatus_ was not statistically significant we leave it out from the final model. Our final model predicted 252 FALSE cases out of 259 right as for TRUE cases only 33 out of 111 was predicted right. The total proportion of inaccurately classified individuals was 23%.
+
+### 10-Fold cross validation
+
+```{r}
+library(boot)
+cv <- cv.glm(data = pormat, cost = loss_func, glmfit = m2, K = 10)
+
+# average number of wrong predictions in the cross validation
+cv$delta[1]
+
+
+```
+According the 10-fold cross validation out model has about 0.24 error. That is a bit smaller than in the DataCamp model although our final model is exactly the same. However our data has fewer observations so the comparisons is not so straightforward.   
+
