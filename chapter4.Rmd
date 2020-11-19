@@ -1,6 +1,8 @@
-### Exercise 4: Clustering and classification
+# Exercise 4: Clustering and classification
 ```{r}
 date()
+
+library(tidyr); library(dplyr); library(ggplot2); library(gmodels)
 ```
 
 ### Data description
@@ -16,19 +18,20 @@ dim(Boston)
 str(Boston)
 
 ```
-The Boston data set has 506 observations and 14 variables. The data include information on housing values in suburbs of Boston. Full list of variables and descriptions of variables is available [here](https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/Boston.html)
+The Boston data set has 506 observations and 14 variables. The data include information on housing values in suburbs of Boston. Full list of variables and descriptions of variables are available [here](https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/Boston.html)
 
 ### Overview of the data
 
 ```{r}
 
 pairs(Boston)
+pairs(Boston[c("crim","age","dis","rad","tax","black","medv")])
 
 summary(Boston)
 
 ```
 
-tekstiä tähän
+From the graphs we can see the distributions of variables and their relationship with other variables. When we take a closer look some selected variables, we see that for example crime rates are higher in areas where there are larger proportions of older houses or in areas where the mean of distances to employment centers is shorter.
 
 ### Standartizatoin of data, creating test and train data sets
 
@@ -60,19 +63,23 @@ boston_scaled <- dplyr::select(boston_scaled, -crim)
 
 # number of rows in the Boston dataset 
 n <- nrow(boston_scaled)
-n
+
 
 # choose randomly 80% of the rows
 ind <- sample(n,  size = n * 0.8)
 
-ind
 # create train set
 train <- boston_scaled[ind,]
 
 # create test set 
 test <- boston_scaled[-ind,]
 
-````
+```
+
+
+After standardization, we can see from the summary table that all variables now have the mean zero and the minimum and maximum values of all scaled variables varies in much smaller intervals than in the original data.
+
+After creating a categorical variable for crime rates, we can see from the table that observations are quite equally distributed in four categories.
 
 
 ### Linear discriminant analysis
@@ -85,10 +92,15 @@ lda.fit <- lda(crime~., data = train)
 # print the lda.fit object
 lda.fit
 
-#plot LDA biplot
-plot(lda.fit, dimen = 2)
+# target classes as numeric
+classes <- as.numeric(train$crime)
 
-````
+#plot LDA biplot
+plot(lda.fit, dimen = 2, col = classes, pch = classes)
+
+```
+
+From the output of our LDA model, we see that the first linear discriminant explain 94.5% of between group variance. This can be also seen from the plot where along the x axis (LD1) the separation of different groups is somewhat clearer, especially for the high category, than along the y axis (LD2).
 
 ### Predictions
 
@@ -106,4 +118,124 @@ lda.pred <- predict(lda.fit, newdata = test)
 table(correct = correct_classes, predicted = lda.pred$class)
 
 
+
 ````
+
+From the table we see that our LDA model did fairly good job as the majority of predictions were correct in most categories. The med low category was the most hardest to predict right.
+
+### K-means clustering
+
+```{r}
+
+set.seed(123)
+library(MASS); library(ggplot2)
+data("Boston")
+
+# center and standardize variables
+boston_scaled <- scale(Boston)
+boston_scaled<-as.data.frame(boston_scaled)
+
+# euclidean distance matrix
+dist_eu <- dist(boston_scaled)
+
+# look at the summary of the distances
+summary(dist_eu)
+
+
+# k-means clustering: 
+km <-kmeans(boston_scaled, centers = 2)
+
+pairs(boston_scaled, col = km$cluster)
+pairs(boston_scaled[6:10], col = km$cluster)
+
+# Investigate the optimal number of clusters with the total of within cluster sum of squares (tWCSS)
+
+# determine the number of clusters
+k_max <- 10
+
+# calculate the total within sum of squares
+twcss <- sapply(1:k_max, function(k){kmeans(boston_scaled, k)$tot.withinss})
+
+# visualize the results
+qplot(x = 1:k_max, y = twcss, geom = 'line')
+
+# k-means clustering: 3 clusters
+km <-kmeans(boston_scaled, centers = 3)
+
+pairs(boston_scaled, col = km$cluster)
+pairs(boston_scaled[6:10], col = km$cluster)
+
+
+```
+
+When we first run K-means clustering with two clusters we can see for example _rad_ and _tax_ variables seem have a clear effect on the clustering results. When we investigate the optimal nubmer of clusters, three clusters seem to be enough according the total of within cluster sum of squares. With three clusters again _rad_ and _tax_ seem to affect the clustering results.
+
+### Bonus
+
+```{r}
+
+library(MASS)
+data("Boston")
+set.seed(123)
+
+# center and standardize variables
+boston_scaled <- scale(Boston)
+boston_scaled<-as.data.frame(boston_scaled)
+
+km <-kmeans(boston_scaled, centers = 3)
+
+
+boston_scaled1<-data.frame(boston_scaled, km$cluster)
+
+# linear discriminant analysis
+lda.fit2 <- lda(km.cluster~., data = boston_scaled1)
+
+# print the lda.fit object
+lda.fit2
+
+# target classes as numeric
+classes <- as.numeric(boston_scaled1$km.cluster)
+
+# the function for lda biplot arrows
+lda.arrows <- function(x, myscale = 1, arrow_heads = 0.1, color = "red", tex = 0.75, choices = c(1,2)){
+  heads <- coef(x)
+  arrows(x0 = 0, y0 = 0, 
+         x1 = myscale * heads[,choices[1]], 
+         y1 = myscale * heads[,choices[2]], col=color, length = arrow_heads)
+  text(myscale * heads[,choices], labels = row.names(heads), 
+       cex = tex, col=color, pos=3)
+}
+
+#plot LDA biplot
+plot(lda.fit2, dimen = 2, col = classes, pch = classes)
+lda.arrows(lda.fit2, myscale = 3)
+
+
+```
+
+From the plot we can see that _rad_ and _tax_ varaiables are mostly correlated with the first linear discriminant and _dis_ and _age_ with the second linear discriminant.
+
+### Super-bonus
+```{r}
+
+set.seed(123)
+model_predictors <- dplyr::select(train, -crime)
+
+# check the dimensions
+dim(model_predictors)
+dim(lda.fit$scaling)
+
+# matrix multiplication
+matrix_product <- as.matrix(model_predictors) %*% lda.fit$scaling
+matrix_product <- as.data.frame(matrix_product)
+
+#Next, install and access the plotly package. Create a 3D plot (Cool!) of the columns of the matrix product by typing the code below.
+
+library(plotly)
+classes <- as.numeric(train$crime)
+
+plot_ly(x = matrix_product$LD1, y = matrix_product$LD2, z = matrix_product$LD3, type= 'scatter3d', mode='markers', color=classes)
+
+```
+
+I didn't figure out anymore how to add clusters as colors.

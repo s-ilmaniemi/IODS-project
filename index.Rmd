@@ -26,16 +26,15 @@ output:
 # This will include Chapter 2 (that is updated in its own file) in the document.
 ```
 
-***
+
 ```{r child = "chapter3.Rmd"}
 # This will include Chapter 3 (that is updated in its own file) in the document.
 ```
 
-<<<<<<< HEAD
+***
 ```{r child = "chapter4.Rmd"}
 # This will include Chapter 2 (that is updated in its own file) in the document.
 ```
-=======
 
->>>>>>> 7e2639ea9ed0aa32a647ad39aea9d127f8c6654c
+
 
