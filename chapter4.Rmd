@@ -1,0 +1,109 @@
+### Exercise 4: Clustering and classification
+```{r}
+date()
+```
+
+### Data description
+
+```{r}
+library(MASS)
+
+# load the data
+data("Boston")
+
+# explore the dataset
+dim(Boston)
+str(Boston)
+
+```
+The Boston data set has 506 observations and 14 variables. The data include information on housing values in suburbs of Boston. Full list of variables and descriptions of variables is available [here](https://stat.ethz.ch/R-manual/R-devel/library/MASS/html/Boston.html)
+
+### Overview of the data
+
+```{r}
+
+pairs(Boston)
+
+summary(Boston)
+
+```
+
+tekstiä tähän
+
+### Standartizatoin of data, creating test and train data sets
+
+```{r}
+
+# center and standardize variables
+boston_scaled <- scale(Boston)
+
+# summaries of the scaled variables
+summary(boston_scaled)
+
+# change the object to data frame
+boston_scaled<-as.data.frame(boston_scaled)
+
+# create a quantile vector of crim 
+bins <- quantile(boston_scaled$crim)
+
+# create a categorical variable 'crime'
+crime <- cut(boston_scaled$crim, breaks = bins, include.lowest = TRUE, label=c("low","med_low","med_high","high"))
+
+# look at the table of the new factor crime
+table(crime)
+
+# add the new categorical value to scaled data
+boston_scaled <- data.frame(boston_scaled, crime)
+
+# remove the crime variable from the data set
+boston_scaled <- dplyr::select(boston_scaled, -crim)
+
+# number of rows in the Boston dataset 
+n <- nrow(boston_scaled)
+n
+
+# choose randomly 80% of the rows
+ind <- sample(n,  size = n * 0.8)
+
+ind
+# create train set
+train <- boston_scaled[ind,]
+
+# create test set 
+test <- boston_scaled[-ind,]
+
+````
+
+
+### Linear discriminant analysis
+
+```{r}
+
+# linear discriminant analysis
+lda.fit <- lda(crime~., data = train)
+
+# print the lda.fit object
+lda.fit
+
+#plot LDA biplot
+plot(lda.fit, dimen = 2)
+
+````
+
+### Predictions
+
+````{r}
+
+# save the correct classes from test data
+correct_classes <- test$crime
+# remove the crime variable from test data
+test <- dplyr::select(test, -crime)
+
+# predict classes with test data
+lda.pred <- predict(lda.fit, newdata = test)
+
+# cross tabulate the results
+table(correct = correct_classes, predicted = lda.pred$class)
+
+
+````
