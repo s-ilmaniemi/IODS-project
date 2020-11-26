@@ -1,0 +1,139 @@
+# Exercise 5: Dimensionality reduction techniques
+```{r}
+date()
+
+library(tidyr); library(dplyr); library(ggplot2); library(gmodels); library(GGally); library(corrplot); library(knitr)
+
+```
+
+### Data description
+
+```{r}
+#Load the data
+human<-read.csv("data/human.csv", header=T, sep=",", row.names=1)
+
+# explore the dataset
+dim(human)
+str(human)
+
+
+ggpairs(human)
+
+cor(human)%>%corrplot()
+
+var(human$GNI)
+var(human$Mat.Mor)
+
+```
+
+Our data contains 155 observations that represent different countries and the following 8 variables:
+
+_GNI_ = Gross National Income per capita
+
+_Life.Exp_ = Life expectancy at birth
+
+_Edu.Exp_ = Expected years of schooling 
+
+_Mat.Mor_ = Maternal mortality ratio
+
+_Ado.Birth_ =  Adolescent birth rate
+
+_Parli.F_ = Percetange of female representatives in parliament
+
+_Edu2.FM_ = Proportion of females with at least secondary education / Proportion of males with at least secondary education
+
+_Labo.FM_ = Proportion of females in the labour force / Proportion of males in the labour force
+
+Our data set is originally derived from the United Nations Development Programme's Human Development Index data, more information is available [here](http://hdr.undp.org/en/content/human-development-index-hdi).
+
+From the figures above we can see the distributions of variables and they associations with each other. For example the maternal mortality ratio is positively correlated with the adolescent birth rate and negatively correlated with gross national income per capita.
+
+### Principal component analysis (PCA)
+
+#### Unstandardized data
+
+```{r out.width = '120%', fig.cap="Figure 1: PCA, unscaled data: How countries differ  from each other according to HDI indicators"}
+
+pca_human <- prcomp(human)
+pca_human
+s <- summary(pca_human)
+s
+
+
+#Draw a biplot of the principal component representation and the original variables
+biplot(pca_human, choices = 1:2, cex = c(0.5, 0.6), col = c("grey80", "deeppink2") )
+
+
+
+```
+
+
+
+#### Standardized data
+
+```{r out.width = '120%', fig.cap="Figure 2: PCA, scaled data: How countries differ from each other according to HDI indicators" }
+
+human_std <- scale(human)
+
+pca_human <- prcomp(human_std)
+pca_human
+
+pca_human
+s <- summary(pca_human)
+s
+
+#Draw a biplot of the principal component representation and the original variables
+fig1<-biplot(pca_human, choices = 1:2, cex = c(0.5, 0.6), col = c("grey80", "deeppink2"), )
+
+
+
+```
+
+
+
+From the figures above we can see that when have conducted PCA on unstandardized and standardized data the results are quite different. When we haven't scaled our date PC1 explains most of the variance and _GNI_ variable is the only one that stands out. With standardized data when we have scaled the data, PC1 explains 54% of the variance and PC2 16%. There is also now more variables that explain the differences between countries as in the first model only _GNI_ was mainly used to differentiated countries from each other. 
+
+The difference in results is due to the fact that PCA try to find the components that maximize the variance and give a lot weight on variables that have large variance. In our unscaled data there are huge differences in variance due scales the variables are measured. From the descriptive part we can see that _GNI_ has markedly larger scale and it gets much larger values than other variables and that is why it stands out in PCA and bias our results. With scaling we can harmonize differences in the measurement scales and variances. 
+
+From the figure 2 we can see the variables (or features) that mostly affect PC1, countries with high maternal mortality ratio and adolescent birth rate are on more on the right along PC1 axis as countries with high GNI or life expectancy are on the lef. We can also say that maternal mortality ratio and adolescent birth rate are highly positively correlated as they have small angle between them on the biplot, on the other hand GNI and maternal mortality ratio are negatively correlated as they have an angle almost 180 degrees. From the plot we also see that maternal mortality ratio and percentage of female representatives in parliament are not correlated strongly as the angle between them is apprx. 90 degrees. Moreover, we see that percetange of female representatives in parliament and Labor.FM are the features that mostly affect the PC2. 
+
+When taking a closer look how observations are aligned along axis, not so surprisingly we can find Nordic countries on the top left where we would expect find countries with high income, high life expectancy and where equality between men and women is an important value.
+
+
+### Multiple Correspondence Analysis
+
+```{r}
+
+library(FactoMineR)
+data(tea)
+
+# explore the dataset
+dim(tea)
+str(tea)
+
+
+# column names to keep in the dataset
+keep_columns <- c("Tea", "How", "how", "sugar", "where", "lunch")
+
+# select the 'keep_columns' to create a new dataset
+tea_time <- select(tea, one_of(keep_columns))
+
+gather(tea_time) %>% ggplot(aes(value)) + facet_wrap("key", scales = "free") + geom_bar() + theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8))
+
+# look at the summaries and structure of the data
+summary(tea_time)
+str(tea_time)
+
+mca <- MCA(tea_time, graph = FALSE) 
+# summary of the model 
+summary(mca) 
+
+# visualize MCA 
+
+plot(mca, invisible=c("ind"), habillage = "quali")
+
+
+```
+
+
+We choose 6 variables from the tea data set and take a look of the distributions of the variables. We run MCA and from the output we can see that dimension 1 explains 15% of the variance and dimension 2 14%. _how_ (i.e. do you drink your tea with teabag) variable is mostly correlated with dimension 1. From MCA biplot we can see how variables and their categories are associated with each other. For example unpackaged (a category of _how_) and tea shop (a category of _where_) are more similar than unpackaged and chain store. Roughly we could say that unpackaged and tea shop are close to each other and tea bag and chain store are close to each other this probably repserent that people who like tea a lot buy their tea from a tea shop and drink it without teabag as those who are more casual tea drinkers buy it from a chain store and drink it with a tea bag.
