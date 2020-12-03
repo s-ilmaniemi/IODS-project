@@ -1,0 +1,270 @@
+# Exercise 6: Analysis of longitudinal data
+
+```{r}
+date()
+
+library(tidyr); library(dplyr); library(ggplot2); library(gmodels); library(GGally); library(corrplot); library(knitr)
+
+```
+### Chapter 8 analyses on RATS data 
+
+```{r}
+rats <- read.csv("data/RATSL.csv", header=T)
+
+str(rats)
+
+rats$ID <- factor(rats$ID)
+rats$Group <- factor(rats$Group)
+
+```
+
+#### Individual response profiles by diet group 
+```{r}
+ggplot(rats, aes(x = Time, y = Weight, linetype = ID)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ Group, labeller = label_both) +
+  theme(legend.position = "none") + 
+  scale_y_continuous(limits = c(min(rats$Weight), max(rats$Weight)))
+
+rats <- rats %>%  group_by(Time) %>% mutate(stdweight = ((Weight-mean(Weight))/sd(Weight))) %>% ungroup()
+
+ggplot(rats, aes(x = Time, y = stdweight, linetype = ID)) +
+  geom_line() +
+  scale_linetype_manual(values = rep(1:10, times=4)) +
+  facet_grid(. ~ Group, labeller = label_both) +
+  scale_y_continuous(name = "Standardized Weight")
+
+```
+
+
+From the two graphs above we can see how the weight of different rats changes over the study time in different diet groups. From the beginning Group 1 seems to differ clearly from other groups as rats in this group have much lower weight. From the both graphs we can also see the tracking phenomenon, individuals with higher starting values at the beginning will have also higher values in the end.
+
+#### Mean response profiles for the three diet groups
+```{r}
+
+
+str(rats)
+
+unique
+
+n<-rats$Time %>% unique() %>% length()
+n
+
+# Summary data with mean and standard error of weight by group and time 
+ratsS <- rats %>% group_by(Group, Time) %>% summarise( mean = mean(Weight), se = (sd(Weight)/sqrt(unique(ID) %>% length()))) %>% ungroup()
+
+glimpse(ratsS)
+
+data.frame(ratsS)
+
+# Plot the mean profiles
+ggplot(ratsS, aes(x = Time, y = mean, linetype = Group, shape = Group)) +
+  geom_line() +
+  scale_linetype_manual(values = c(1,2,3)) +
+  geom_point(size=3) +
+  scale_shape_manual(values = c(1,2,3)) +
+  geom_errorbar(aes(ymin=mean-se, ymax=mean+se, linetype="1"), width=0.3) +
+  theme(legend.position = c(0.9,0.5)) +
+  scale_y_continuous(name = "mean(Weight) +/- se(Weight)")
+
+rats$Time <- factor(rats$Time)
+
+str(rats)
+
+
+ggplot(rats, aes(x = Time, y = Weight, fill = Group)) +
+  geom_boxplot()
+
+rats$Time <- as.integer(rats$Time)
+
+str(rats)
+
+```
+After we have calculated means and standard errors by groups for each point, we can see from the plot that groups 2 and 3 are close to each other and their SEs seem to cross, so maybe the difference in diet for there groups does not have affect how weight changes. Group 1 again differ from other two group with markedly lower values. Group 1 also has smaller SEs as there is more observations in this group.
+
+#### Boxplots of mean summary measures for the threet groups, with and without outliers
+
+```{r}
+
+# Create a summary data by treatment and subject with mean as the summary variable (ignoring baseline).
+ratS1 <- rats  %>%
+  filter(Time>1) %>%
+  group_by(Group, ID) %>%
+  summarise( mean=mean(Weight) ) %>%
+  ungroup()
+
+# Glimpse the data
+glimpse(ratS1)
+ratS1
+
+# Draw a boxplot of the mean versus treatment
+ggplot(ratS1, aes(x = Group, y = mean)) +
+  geom_boxplot() +
+  stat_summary(fun.y = "mean", geom = "point", shape=23, size=4, fill = "white") +
+  scale_y_continuous(name = "mean(Weight)")+labs(title="With outliers")+theme(
+  plot.title = element_text(hjust = 0.5))
+
+# Create a new data by filtering the outlier and adjust the ggplot code the draw the plot again with the new data
+ratS2 <- filter(ratS1, mean>250 & mean<550)
+ratS2 <- filter(ratS2, mean!=495.2)
+
+
+ggplot(ratS2, aes(x = Group, y = mean)) +
+  geom_boxplot() +
+  stat_summary(fun.y = "mean", geom = "point", shape=23, size=4, fill = "white") +
+  scale_y_continuous(name = "mean(Weight)")+labs(title="Without outliers")+theme(
+  plot.title = element_text(hjust = 0.5))
+
+
+
+
+```
+
+After we have plot the mean of weight for each group (excluding the baseline weight), we can see that again groups 2 and 3 are closer to each other than Group 1. Also evert group seem to have an outlier. After excluding extreme values (e.g. outliers for each group) we can see that the IQRs of Group 2 and 3 are much more narrow now than with the outlier, but IQR of Group 1 does not change much. The means are pretty much the same in both graphs. There also seem to be a clear difference between the means.
+
+#### Statistical tests on mean summary measures
+
+```{r}
+
+### One way ANOVA to see if there is a difference between groups (with data without outliers)
+
+fit1<-aov(mean ~ Group, ratS2)
+summary(fit1)
+TukeyHSD(fit1,"Group")
+
+### Adding the baseline and testing the difference between groups adjusted for the baseline (with data with outliers so we can add the baseline column)
+
+RATS <- read.table("https://raw.githubusercontent.com/KimmoVehkalahti/MABS/master/Examples/data/rats.txt", sep="\t", header=T)
+
+str(RATS)
+
+RATS$ID <- factor(RATS$ID)
+RATS$Group <- factor(RATS$Group)
+
+# Add the baseline from the original data as a new variable to the summary data
+ratS3 <- ratS1 %>%
+  mutate(baseline = RATS$WD1)
+
+str(ratS3)
+
+# Fit the linear model with the mean as the response and compute the analysis of covariance table for the fitted model with anova()
+fit <- lm(mean ~ baseline + Group, data = ratS3)
+
+summary(fit)
+anova(fit)
+
+
+fit2<-aov(mean ~ baseline + Group, data=ratS3)
+summary(fit2)
+
+TukeyHSD(fit2,"Group")
+
+
+```
+
+As we have now three groups we can't run t-test so we use one-way ANOVA to see if there is a difference between groups.With the data that do not include outliers we see that there is a significant difference between groups and post-hoc Tukey-HSD test shows in pairwise comparison there is significant difference between every pair. However, after we add the baseline variable to our model, the baseline is significantly related to weight but the group variable is not significant and in the pairwise comparison we see that there is no significant difference between any pair. So we can conclude that the type of diet which rats followed do not explain the difference in mean weight measures when we had adjusted the analyses for the baseline values. 
+
+
+### Chapter 9 analyses on BPRS data 
+
+```{r}
+BPRS <- read.csv("data/BPRSL.csv", header=T)
+
+str(BPRS)
+
+BPRS$subject <- factor(BPRS$subject)
+BPRS$treatment <- factor(BPRS$treatment)
+
+
+
+```
+
+```{r}
+library(ggplot2)
+
+ggplot(BPRS, aes(x = week, y = bprs, colour = subject, linetype = treatment)) +
+  geom_line()
+
+BPRS_w <- read.table("https://raw.githubusercontent.com/KimmoVehkalahti/MABS/master/Examples/data/BPRS.txt", sep=" ", header=TRUE)
+
+str(BPRS_w)
+
+pairs(BPRS_w[,3:11], pch = 19)
+
+```
+
+
+After plotting bprs over study time there seem not be a clear difference between solid and dashed lines i.e no difference between the treatment groups. From the scatterplot matrix graph we can see that there are clear patterns and as we have longitudinal data measured from same individuals at different time points, the plot demonstrates that repeated measures are not independent of one another.
+
+
+
+```{r}
+
+
+# Create a basic linear model
+bprs_reg <- lm(bprs ~ week + treatment, data = BPRS)
+
+# print out a summary of the model
+summary(bprs_reg)
+
+library(lme4)
+
+# Create a random intercept model
+bprs_ref <- lmer(bprs ~ week + treatment + (1 | subject), data = BPRS, REML = FALSE)
+
+# Print the summary of the model
+summary(bprs_ref)
+
+
+# Create a random intercept and random slope model
+bprs_ref1 <- lmer(bprs ~ week + treatment + (week | subject), data = BPRS, REML = FALSE)
+
+# print a summary of the model
+summary(bprs_ref1)
+
+# perform an ANOVA test on the two models
+anova(bprs_ref1, bprs_ref)
+
+
+# Create a random intercept and random slope model with the interaction
+bprs_ref2 <- lmer(bprs ~ week + treatment + week*treatment+ (week | subject), data = BPRS, REML = FALSE)
+
+# print a summary of the model
+summary(bprs_ref2)
+
+# perform an ANOVA test on the two models
+anova(bprs_ref2, bprs_ref1)
+
+# draw the plot of RATSL with the observed Weight values
+ggplot(BPRS, aes(x = week, y = bprs, colour = subject)) +
+  geom_line(aes(linetype = treatment)) +
+  scale_x_continuous(name = "Weeks") +
+  scale_y_continuous(name = "BPRS") +
+  theme(legend.position = "top")
+
+# Create a vector of the fitted values
+Fitted <- fitted(bprs_ref2)
+
+# Create a new column fitted to RATSL
+BPRS <- BPRS %>% mutate(fit=Fitted %>% as.numeric())
+
+# draw the plot of RATSL with the Fitted values of weight
+ggplot(BPRS, aes(x = week, y = fit, colour = subject)) +
+  geom_line(aes(linetype = treatment)) +
+  scale_x_continuous(name = "Weeks") +
+  scale_y_continuous(name = "Fitted BPRS") +
+  theme(legend.position = "top")
+
+
+```
+
+After we have fitted a basic linear model, we can see that there seem to be no treatment effect as the coefficient for treatment is not significant, however the week variable seem to be significantly related to BSPR. 
+
+Next we fit a random  intercept model that allows the linear regression fits for each individual differ in intercept. The estimates results are quite similar as in the basic linear model with some small difference in the standard errors. Again, there is no evidence of the treatment effect. The estimated variance for subject random effects is not quite large so there is probably not much variation in intercepts of the regressions fits of the individual BSPR changes.
+
+We proceed to fit a random intercept and random slope model. Now we also allow the regression fits for each individual differ in slope. Again there is no evidence of treatment effect, the estimates are again similar to previous models. However, according the likelihood ratio test the random intercept and slope model is a better fit than the random intercept model (p-value 0.026 ).
+
+Finally we fit a random intercept and random slope model with week*treatment interaction term. Now the estimates are somewhat diffrent. However, coefficients for the treatment variable or for the interaction term are not statistically significant. Also, when we compare the random intercept and slope model with interaction term to a model without interaction term, it seems that the interaction model is no better fit than the model without the interaction term.
+
+Plotting the fitted values also shows that it is very hard to see any difference between the two tretment groups.
